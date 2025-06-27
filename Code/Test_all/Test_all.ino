@@ -154,6 +154,8 @@ void OnTxDone(void) {
   lora_idle = true;
 }
 
+//hallo luis
+
 // Callback, wenn Senden abgelaufen ist
 void OnTxTimeout(void) {
   Radio.Sleep();
