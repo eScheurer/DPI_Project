@@ -41,6 +41,9 @@ LoRa:
 * L2 Die ESP müssen den chat laufend (und gemäss C2) updaten.
 
 
+### Extension Ideas
+* Sub-msg-threads (ala Reddit)
+* Verschiedene Chats
 
 
 
