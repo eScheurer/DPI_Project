@@ -5,7 +5,7 @@ set(CMAKE_C_STANDARD 11)
 
 include_directories(.)
 
-add_executable(OS_Chat
-        main.c
-        crdt.c
+add_executable(DPI_Project
+        CRDT/main.c
+        CRDT/crdt.c
 )
