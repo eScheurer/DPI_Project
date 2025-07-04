@@ -1,8 +1,11 @@
 #include <vector>
 #include <SPI.h>
 #include <WiFi.h>
+#include <algorithm>
+#include <base64.h>
 
 // TODO WiFi AP settings
+const char* ssid;
 
 // TODO LoRa settings
 
@@ -13,9 +16,13 @@
 struct CRDTNode {
   String id;
   String content;
+  uint32_t time;
+  String sender;
 };
 
 std::vector<CRDTNode> crdtList;
+uint32_t localClock = 0;
+String nodeID;
 
 /**
 / Checking if a message already exists based on the unique id
@@ -27,23 +34,43 @@ bool messageExists(const String& id) {
   return false;
 }
 
+void sortCRDTLog() {
+  std::sort(crdtList.begin(), crdtList.end(), [](const CRDTNode& a, const CRDTNode& b) {
+    if (a.time != b.time) { 
+      return a.time < b.time;
+    }
+    return a.sender < b.sender;
+  });
+}
+
 /**
 / Apply a message if it doens't exist yet
 */
 void applyMessage(const CRDTNode& newMsg) {
-  // TODO Add a size check to not bloat the crdt
   if (!messageExists(newMsg.id)) {
+    localClock = max(localClock, newMsg.time) + 1;
     crdtList.push_back(newMsg);
+    sortCRDTLog();
+    // TODO test if the sorting is needed/usefull in our case
   }
+}
+
+// The message ID is based of the curent local time and the WiFi MAC address
+String createMessageID(uint32_t time) {
+  return String(time) + "_" + nodeID;
 }
 
 /**
 / Sending the id and message over LoRa
 / This is used if some messages are missing on the remote ESP
 */
-void sendMessage(const String& id, const String& content) {
-  String packet = "MSG|" + id + "|" + content;
-  // TODO Send message over LoRa
+void sendMessage(const String& content) {
+  localClock++;
+  uint32_t time = localClock;
+  String id = createMessageID(time);
+  String packet = "MSG|" + id + "|" + String(time) + "|" + nodeID + "|" + content;
+  // TODO Send over LoRa
+  applyMessage({id, content, time, nodeID});
 }
 
 /**
@@ -76,6 +103,8 @@ void handleIDList(String list) {
     comma = list.indexOf(',', last);
   }
 
+  String fullPacket = "";
+
   // Looping over our own list
   for (auto &msg : crdtList) {
     bool found = false;
@@ -90,8 +119,15 @@ void handleIDList(String list) {
     // If we finished comparing the current element of our list with the remote list and didn't find a duplicate, we know that that's missing on the remote
     if (!found) {
       // Sending missing message
-      sendMessage(msg.id, msg.content);
+      fullPacket += msg.id + "|" + String(msg.time) + "|" + msg.sender + "|" + msg.content + ";;";
+      // Before change the message was send here
     }
+  }
+  if (fullPacket.length() > 0) {
+    // Base 64 encoding to reduce transmissing size
+    String encoded = base64::encode(fullPacket);
+    String packet = "PKT|" + encoded;
+    // TODO send over LoRa
   }
 }
 
@@ -103,11 +139,6 @@ void onReceiveMessage() {
   // TODO For single messages apply the message with applyMessage
   // TODO For the remote list pass it on to handleIDList
   // TODO Add a size check for the messages
-}
-
-// The message ID is based of the curent time and the WiFi MAC address
-String createMessageID() {
-  return String(millis()) + "_" + WiFi.macAddress();
 }
 
 /**
