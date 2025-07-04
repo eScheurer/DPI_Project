@@ -2,7 +2,8 @@
 #include <SPI.h>
 #include <WiFi.h>
 #include <algorithm>
-#include <base64.h>
+#include <LoRa.h>
+#include "mbedtls/base64.h"  // Base64 for ESP32
 
 // TODO WiFi AP settings
 const char* ssid;
@@ -87,6 +88,26 @@ void sendIDList() {
 }
 
 /**
+ * Base64 encoding for String
+ */
+String encode(String input) {
+  size_t outLen;
+  unsigned char output[1024];  // Adjust size if needed
+  mbedtls_base64_encode(output, sizeof(output), &outLen, (const unsigned char*)input.c_str(), input.length());
+  return String((char*)output);
+}
+
+/**
+ * Base64 decoding for String
+ */
+String decode(String input) {
+  size_t outLen;
+  unsigned char output[1024];  // Adjust size if needed
+  mbedtls_base64_decode(output, sizeof(output), &outLen, (const unsigned char*)input.c_str(), input.length());
+  return String((char*)output);
+}
+
+/**
 / Received ID list need to be converted to the same format as our own list
 */
 void handleIDList(String list) {
@@ -125,19 +146,79 @@ void handleIDList(String list) {
   }
   if (fullPacket.length() > 0) {
     // Base 64 encoding to reduce transmissing size
-    String encoded = base64::encode(fullPacket);
+    String encoded = encode(fullPacket);
     String packet = "PKT|" + encoded;
     // TODO send over LoRa
   }
 }
 
+
 /**
-/ LoRa things go here
+/ Received message needs to be decoded
 */
 void onReceiveMessage() {
-  // TODO Differentiate between a single message (MSG|) and the remote list (IDLIST|)
-  // TODO For single messages apply the message with applyMessage
-  // TODO For the remote list pass it on to handleIDList
+  // TODO integrate LoRa here as well
+  int packetSize = LoRa.parsePacket();
+  if (packetSize == 0) return;
+
+  String received = "";
+  
+  while (LoRa.available()) {
+    received += (char)LoRa.read();
+  }
+  
+
+  // Handle single messages
+  if (received.startsWith("MSG|")) {
+    int p1 = received.indexOf('|', 4);
+    int p2 = received.indexOf('|', p1 + 1);
+    int p3 = received.indexOf('|', p2 + 1);
+    int p4 = received.indexOf('|', p3 + 1);
+
+    if (p1 == -1 || p2 == -1 || p3 == -1 || p4 == -1) return;
+
+    String id = received.substring(4, p1);
+    uint32_t time = received.substring(p1 + 1, p2).toInt();
+    String sender = received.substring(p2 + 1, p3);
+    String content = received.substring(p3 + 1);
+
+    applyMessage({id, content, time, sender});
+
+  // Handle receiving of ID lists
+  } else if (received.startsWith("IDLIST|")) {
+    handleIDList(received);
+
+  // Handling of multiple messages
+  } else if (received.startsWith("PKT|")) {
+    String encoded = received.substring(4);
+    String payload = decode(encoded);
+    int start = 0;
+    int end = payload.indexOf(";;", start);
+
+    while (end != -1) {
+      String part = payload.substring(start, end);
+      int p1 = part.indexOf('|');
+      int p2 = part.indexOf('|', p1 + 1);
+      int p3 = part.indexOf('|', p2 + 1);
+
+      if (p1 != -1 && p2 != -1 && p3 != -1) {
+        String id = part.substring(0, p1);
+        uint32_t time = part.substring(p1 + 1, p2).toInt();
+        String sender = part.substring(p2 + 1, p3);
+        String content = part.substring(p3 + 1);
+
+        applyMessage({id, content, time, sender});
+      }
+
+      start = end + 2;
+      // End of one message is at the delimiter ;;
+      end = payload.indexOf(";;", start);
+    }
+  }
+  // Differentiate between a single message (MSG|) and the remote list (IDLIST|)
+  // For single messages apply the message with applyMessage
+  // For the remote list pass it on to handleIDList
+  // PKT of multiple messages need to be decoded
   // TODO Add a size check for the messages
 }
 
