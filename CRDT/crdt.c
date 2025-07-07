@@ -6,20 +6,24 @@
 #include <stdlib.h>
 #include <string.h>
 #include "crdt.h"
+#include "buffer.h"
 
 Node* root = NULL; //initialize root
+Buffer* buffer = CreateBuffer(); //initialize buffer
 
 Node* createNode(const char* msgID, const char* parentID, const char* sender, const char* text, Node* child, Node* sibling) {
     Node* node = (Node*)malloc(sizeof(Node));
 	if (!node) {
 	return NULL;	// if malloc fails
 	}
-    node->msgID = strdup(msgID); //strdup kopiert den String
+
+	node->msgID.clientID = strdup(sender); //strdup kopiert den String
+
+	node->msgID = strdup(msgID); //strdup kopiert den String
     node->parentID = strdup(parentID);
     node->sender = strdup(sender);
     node->text = strdup(text);
-    node->child = child;
-    node->sibling = sibling;
+
     return node;
 }
 
@@ -69,16 +73,15 @@ void insert(Node* node) {
 	// find parten
 	Node* parent = findNode(node->parentID, root);
 	if (!parent) {
-		printf("Parent not found\n"); //TODO: bufferQueue thingy
+		printf("Parent not found\n");
+		AddToBuffer(buffer, node);
 		return;
 	}
-
 	insertSorted(&(parent->child), node);
-
-	//free Node?!!!
+	checkBuffer(buffer);
 }
 
-void freeNode(Node* node) {
+void freeNodes(Node* node) {
     if (!node) return;
 
     free(node->msgID);
@@ -86,8 +89,8 @@ void freeNode(Node* node) {
     free(node->sender);
     free(node->text);
 
-    freeNode(node->child);
-    freeNode(node->sibling);
+    freeNodes(node->child);
+    freeNodes(node->sibling);
     free(node);
 }
 //TODO: freeTree?
