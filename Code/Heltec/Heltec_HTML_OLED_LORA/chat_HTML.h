@@ -96,11 +96,16 @@ static const char htmlPage[] PROGMEM = R"rawliteral(
     async function sendMessage(e) {
       e.preventDefault();
       const input = document.getElementById('msg');
-      const text = input.value.trim(); if (!text) return;
-      await fetch('/send',{
+      const text = input.value.trim(); 
+      if (!text) {
+        return;
+      }
+      const username = localStorage.getItem('username') || 'Anonymous';
+
+       await fetch('/send',{
         method:'POST',
         headers:{'Content-Type':'application/x-www-form-urlencoded'},
-        body:'msg='+encodeURIComponent(text)
+        body:'msg='+encodeURIComponent(username + ': ' + text)
       });
       input.value = '';
       await fetchMessages();
@@ -130,8 +135,19 @@ static const char htmlPage[] PROGMEM = R"rawliteral(
       fetchMessages(); // so that msgs are shown again
     }
 
+    function setUsername() {
+      const username = document.getElementById('username').value.trim();
+      if (username) {
+        localStorage.setItem('username', username);
+      }
+    }
+
     // Event-Handler für Formular und Intervall-Updates
     window.addEventListener('load', () => {
+      const storedUsername = localStorage.getItem('username');
+      if (storedUsername) {
+        document.getElementById('username').value = storedUsername; // so that user knows they already got a name, only userfeedback
+      }
       document.getElementById('chatForm').onsubmit = sendMessage;
       fetchMessages(); setInterval(fetchMessages, 2000);
     });
@@ -143,12 +159,19 @@ static const char htmlPage[] PROGMEM = R"rawliteral(
 <body>
   <h1>Crisis-Chat</h1>
     <h2>(a Project from the DPI Lecture FS25)</h2>
+
+  <div style="margin-bottom: 10px;">
+    <input id="username" placeholder="Please enter your username here.."/>
+    <button type="button" onclick="setUsername()">Confirm</button>
+  </div>
+
   <div id="history"></div>
+
   <form id="chatForm">
     <input id="msg" autocomplete="off" placeholder="Enter message..." />
     <button type="submit">Send</button>
   </form>
-    <input id="search" placeholder="search in chat.." oninput="searchMessages()">
+    <input id="search" placeholder="search in chat..." oninput="searchMessages()">
     <button type="button" onclick="clearSearch()">X</button>
 </body>
 </html>
