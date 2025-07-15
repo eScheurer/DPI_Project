@@ -1,5 +1,7 @@
 // --- Konfiguration OLED ---
 #include "HT_SSD1306Wire.h"
+#include "mbedtls/aes.h" // encription 
+#include "esp_systems.h" // for esp_random()
 
 static SSD1306Wire display(0x3c, 500000, SDA_OLED, SCL_OLED, GEOMETRY_128_64, RST_OLED);
 
@@ -63,6 +65,71 @@ char macAddress[32];
 static RadioEvents_t RadioEvents;
 const uint16_t BUF_SIZE = 256;
 char ioBuffer[BUF_SIZE];      
+
+// SECURITY --------------------------------------------------------------
+// key for testing
+const uint8_t aesKey[16] = {
+  0x12, 0x34, 0x56, 0x78,
+  0x9A, 0xBC, 0xDE, 0xF0,
+  0x11, 0x22, 0x33, 0x44,
+  0x55, 0x66, 0x77, 0x88
+};
+
+String encrypt(String rawText){
+  mbedtls_aes_context aes;
+  uint8_t iv[16]; // Initialisierungsvektor
+  size_t length = rawText.length();
+  size_t paddedLength = ((length/16) +1) *16; // aes works with 16bit blocks, need padding to fit it
+  uint8_t input[paddedLength];
+  uint8_t output[paddedLength];
+  memset(input, 0, paddedLength); // "Zero-Padding"
+  memcpy(input, rawText.c_str(), length);
+
+  esp_fill_random(iv, 16);
+  mbedtls_aes_init(&aes);
+  mbedtls_aes_setkey_enc(&aes, aesKey, 128); //128 Bit == 16 Byte
+  mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, paddedLength, iv, input, output);
+
+  uint8_t encoded[16 + paddedLength];
+  memcpy(encoded, iv, 16);
+  memcpy(encoded + 16, output, paddedLength);
+
+  size_t outputLength;
+  uint8_t base64[512]; //TODO: size?????????????????????????????????
+  mbedtls_base64_encode(base64, sizeof(base64), &outputLength, encoded, 16+paddedLength); // for transmission
+
+  mbedtls_aes_free(&aes);
+  return String((char*)base64, outputLength);
+}
+
+String decrypt(String encriptedText) {
+  mbedtls_aes_context aes;
+  uint8_t decoded[512];
+  size_t decodedLength;
+  int result = mbedtls_base64_decode(decoded, sizeof(decoded), &decodedLength,(const uint8_t*)encriptedText.c_str(), encriptedText.length());
+
+  if (result != 0) {
+    return "Error: Decoding went wrong!";
+  }
+  if (decodedLength < 16) {
+    return "Error: message too short, likely damaged";
+  }
+  uint8_t iv[16];
+  memcpy(iv, decoded, 16);
+  size_t rawLength = decodedLength -16;
+  uint8_t* rawText = decoded + 16;
+  uint8_t decrypted[rawLength];
+
+  mbedtls_aes_init(&aes);
+  mbedtls_aes_setkey_dec(&aes, aesKey, 128);
+  mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_DECRYPT, rawLength, iv, rawText, decrypted);
+  mbedtls_aes_free(&aes);
+
+  while (decrypted[rawLength -1] == 0 && rawLength > 0) {
+    rawLength -= 1; // remove the zeros padding from the end
+  }
+  return String((char*)decrypted, rawLength);
+}
 
 // WEBSTUFF --------------------------------------------------------------
 // Sendet die HTML-Seite an den Client
@@ -181,7 +248,8 @@ void sendMessage(const String& content) {
   localClock++;
   uint32_t time = localClock;
   String id = createMessageID(time);
-  String packet = "MSG|" + id + "|" + content; 
+  String encrypted = encrypt(content);
+  String packet = "MSG|" + id + "|" + encrypted; 
   sendLoRaMessage(packet);
   applyMessage({ id, content, time, nodeID });
 }
@@ -249,6 +317,7 @@ void onReceiveMessage(String &received) {
     // id und content extrahieren
     String id      = received.substring(4, p1);      // "<time>_<nodeID>"
     String content = received.substring(p1 + 1);     // Rest der Nachricht
+    String decrypted = decrypt(content);
 
     // Aus der id Zeit und Sender extrahieren
     int us = id.indexOf('_');
@@ -256,7 +325,7 @@ void onReceiveMessage(String &received) {
     uint32_t time   = id.substring(0, us).toInt();
     String   sender = id.substring(us + 1);
 
-    applyMessage({ id, content, time, sender });
+    applyMessage({ id, decrypted, time, sender });
 
   // Handle receiving of ID lists
   } else if (received.startsWith("IDLIST|")) {
