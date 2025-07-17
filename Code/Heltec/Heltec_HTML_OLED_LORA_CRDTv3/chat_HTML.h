@@ -96,7 +96,15 @@ static const char htmlPage[] PROGMEM = R"rawliteral(
     async function sendMessage(e) {
       e.preventDefault();
       const input = document.getElementById('msg');
-      const text = input.value.trim(); 
+      const text = input.value.trim();   
+      const messageHint = document.getElementById('messageHint');
+
+      if (!validate(text)) {
+        messageHint.innerText = "No special characters allowed.";
+        return;
+      } else {
+        messageHint.innerText = "";
+      }
       if (!text) {
         return;
       }
@@ -137,8 +145,45 @@ static const char htmlPage[] PROGMEM = R"rawliteral(
 
     function setUsername() {
       const username = document.getElementById('username').value.trim();
+      const usernameHint = document.getElementById('usernameHint');
+
+      if (!validate(username)) {
+        usernameHint.innerText = "No special characters allowed, please choose another name.";
+        return;
+      }
       if (username) {
         localStorage.setItem('username', username);
+      }
+    }
+
+    function validate(name) {
+      const pattern = /^[a-zA-Z0-9\s.,!?;:\-_"'()]*$/;
+      return pattern.test(name);
+    }
+
+    function validateName() {
+      const input = document.getElementById("username").value;
+      const hint = document.getElementById("usernameHint");
+
+      if (!validate(input)) {
+        hint.innerText = "No special characters allowed, please choose another name.";
+        return false; 
+      } else {
+        hint.innerText = ""; // No hint
+        return true;    
+      }
+    }
+
+    function validateMessage() {
+      const input = document.getElementById("msg").value;
+      const hint = document.getElementById("messageHint");
+
+      if (!validate(input)) {
+        hint.innerText = "No special characters allowed.";
+        return false; // Submission not possible
+      } else {
+        hint.innerText = ""; 
+        return true; 
       }
     }
 
@@ -161,15 +206,17 @@ static const char htmlPage[] PROGMEM = R"rawliteral(
     <h2>(a Project from the DPI Lecture FS25)</h2>
 
   <div style="margin-bottom: 10px;">
-    <input id="username" placeholder="Please enter your username here.."/>
+    <input id="username" placeholder="Please enter your username here.." oninput="validateName()" maxlength="10"/>
     <button type="button" onclick="setUsername()">Confirm</button>
+    <p id="usernameHint" style="color: red;"></p>
   </div>
 
   <div id="history"></div>
 
   <form id="chatForm">
-    <input id="msg" autocomplete="off" placeholder="Enter message..." />
+    <input id="msg" autocomplete="off" placeholder="Enter message..." oninput="validateMessage()" maxlength="30"/>
     <button type="submit">Send</button>
+    <p id="messageHint" style="color: red;"></p>
   </form>
     <input id="search" placeholder="search in chat..." oninput="searchMessages()">
     <button type="button" onclick="clearSearch()">X</button>
