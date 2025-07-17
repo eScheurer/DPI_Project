@@ -1,7 +1,8 @@
 // --- Konfiguration OLED ---
 #include "HT_SSD1306Wire.h"
 #include "mbedtls/aes.h" // encription 
-#include "esp_systems.h" // for esp_random()
+#include "mbedtls/base64.h"
+#include "esp_system.h" // for esp_random()
 
 static SSD1306Wire display(0x3c, 500000, SDA_OLED, SCL_OLED, GEOMETRY_128_64, RST_OLED);
 
@@ -95,11 +96,14 @@ String encrypt(String rawText){
   memcpy(encoded + 16, output, paddedLength);
 
   size_t outputLength;
-  uint8_t base64[512]; //TODO: size?????????????????????????????????
-  mbedtls_base64_encode(base64, sizeof(base64), &outputLength, encoded, 16+paddedLength); // for transmission
+  char base64[512]; //TODO: size?????????????????????????????????
+  mbedtls_base64_encode((unsigned char*)base64, sizeof(base64), &outputLength, encoded, 16+paddedLength); // for transmission
+  base64[outputLength] = '\0'; // make it correct String
 
   mbedtls_aes_free(&aes);
-  return String((char*)base64, outputLength);
+  Serial.println((char*)base64); 
+
+  return String((char*)base64);
 }
 
 String decrypt(String encriptedText) {
@@ -297,7 +301,7 @@ void handleIDList(String list) {
     if (!found) {
       String packet = "MSG|"
         + msg.id + "|" 
-        + msg.content;
+        + encrypt(msg.content);
       sendLoRaMessage(packet);
       delay(500);  // kurze Pause, damit LoRa nicht überhitzt
     }
@@ -338,6 +342,16 @@ void onReceiveMessage(String &received) {
 
 void setup() {
   Serial.begin(115200);
+  // for testing only
+  delay(4000); // Warte, bis Serial verbunden ist
+
+  String enc = encrypt("Hallo Welt!");
+Serial.println("Encrypted as Base64:");
+Serial.println(enc);
+
+String dec = decrypt(enc);
+Serial.println("Decrypted:");
+Serial.println(dec);
 
   // WEBSTUFF --------------------------------------------------------------
 WiFi.mode(WIFI_AP);
