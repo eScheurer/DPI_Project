@@ -346,8 +346,7 @@ webServer.on("/messages", HTTP_GET, handleMessages);
 
 // Captive portal detection to make sure it works on android
 webServer.on("/generate_204", HTTP_GET, []() {
-  webServer.sendHeader("Location", "/", true);
-  webServer.send(302, "text/plain", "");
+  webServer.send(204, "text/plain", "");
 });
 webServer.on("/redirect", HTTP_GET, []() {
   webServer.sendHeader("Location", "/", true);
