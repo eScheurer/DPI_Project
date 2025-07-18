@@ -37,7 +37,7 @@ struct CRDTNode {
 struct IDElement {
   int id;
   int numberOfMessages;
-  int chunkIndex = 0;
+  int ERROR = 0;
 };
 
 // Comparator for numeric MAC‑addresses
@@ -244,22 +244,15 @@ void sendIDList() {
   sendLoRaMessage(out);
 }
 
-// Send messages chunk-wise
-void sendMessageChunk(IDElement& peerInfo) {
-    int totalMsgs = crdtList.size();
-    int startIdx  = peerInfo.chunkIndex * CHUNK_SIZE;
-    int endIdx    = std::min(startIdx + CHUNK_SIZE, totalMsgs);
-
-    for (int i = startIdx; i < endIdx; ++i) {
-        const auto& msg = crdtList[i];
-        sendLoRaMessage("MSG|" + msg.id + "|" + msg.content);
-        delay(500);
+int findNodeIndex(int searchId, const String &searchSender) {
+    for (size_t i = 0; i < crdtList.size(); ++i) {
+        // String::toInt() liefert den numerischen Wert des Strings
+        if (crdtList[i].id.toInt() == searchId
+            && crdtList[i].sender == searchSender) {
+            return static_cast<int>(i);
+        }
     }
-
-    peerInfo.chunkIndex++;
-    if (peerInfo.chunkIndex * CHUNK_SIZE >= totalMsgs) {
-        peerInfo.chunkIndex = 0;
-    }
+    return -1;
 }
 
 // Received ID list need to be converted to the same format as our own list
@@ -267,8 +260,6 @@ void handleIDList(String list) {
   list.remove(0, 7);                                // Remove "IDLIST|"
   std::map<String, IDElement, MacLess> remotelist;  // Parse remote entries
   int start = 0;
-  bool firstEntry = true;
-  String senderMAC;
   while (true) {
     int sep = list.indexOf('|', start);
     if (sep == -1) 
@@ -282,28 +273,74 @@ void handleIDList(String list) {
     String rmac = entry.substring(c1+1, c2);
     int rcount = entry.substring(c2+1).toInt();
 
-    // If first entry, then this is the sender
-    if (firstEntry) {
-      senderMAC   = rmac;
-      firstEntry  = false;
-    }
-
     remotelist[rmac] = { rid, rcount };
     start = sep + 1;
   }
-  
-  // If the element of the peer does not yet exists it gets created
-  if (idlist.find(senderMAC) == idlist.end()) {
-    idlist[senderMAC] = { 0, 0 };
-  }
-  IDElement &peerInfo = idlist[senderMAC];
 
-  // If no entry for us, or counts mismatch, send all MSGs in an intervall of 5
-  auto it = remotelist.find(nodeID);
-  if (it == remotelist.end() || 
-      it->second.numberOfMessages != idlist[nodeID].numberOfMessages) {
-    Serial.println("Sending chunk-wise:");
-    sendMessageChunk(peerInfo);
+  // For each sender in idlist
+  for (auto &kvLocal : idlist) {
+    const String &localMac    = kvLocal.first;
+    const IDElement &localEl  = kvLocal.second;
+    int localCnt              = localEl.numberOfMessages;
+
+    // If peer doesnt know this sender
+    if (remotelist.find(localMac) == remotelist.end()) {
+      // Make a list of all the messages from this sender
+      std::vector<int> idxs;
+      for (int i = 0; i < (int)crdtList.size(); ++i)
+        if (crdtList[i].sender == localMac)
+          idxs.push_back(i);
+
+      int sendCount = min((int)idxs.size(), CHUNK_SIZE);
+      for (int j = 0; j < sendCount; ++j) {
+        auto &msg = crdtList[idxs[j]];
+        sendLoRaMessage("MSG|" + msg.id + "|" + msg.content);
+        delay(500);
+      }
+      continue;
+    }
+
+    // If the peer knows the sender (after we send it the first 5 msg for example)
+    const IDElement &remoteEl = remotelist[localMac];
+    int remoteCnt             = remoteEl.numberOfMessages;
+    // If peer is ahead we wait for its msgs
+    if (remoteCnt >= localCnt) {
+      continue;
+    }
+
+    // If we are ahead find the last commun msg
+    int lastCommonIdx = -1;
+    // search for remote.id in crdtlist
+    lastCommonIdx = findNodeIndex(remoteEl.id, localMac);
+
+    // Make a list of all the messages from this sender
+    std::vector<int> idxs;
+    for (int i = 0; i < (int)crdtList.size(); ++i)
+      if (crdtList[i].sender == localMac)
+        idxs.push_back(i);
+
+    int startPos;
+    // If commun node get its index
+    if (lastCommonIdx >= 0) {
+      // Search lastCommonIdx in made list of senders msgs
+      auto it = std::find(idxs.begin(), idxs.end(), lastCommonIdx);
+      if (it != idxs.end()) {
+        // Position in idxs plus one
+        startPos = (int)(it - idxs.begin()) + 1;
+      } else {
+        startPos = 0;
+      }
+    } else {
+      // No commun Node
+      startPos = 0;
+    }
+    int toSend   = min(localCnt - remoteCnt, CHUNK_SIZE);
+
+    for (int j = startPos; j < startPos + toSend && j < (int)idxs.size(); ++j) {
+      auto &msg = crdtList[idxs[j]];
+      sendLoRaMessage("MSG|" + msg.id + "|" + msg.content);
+      delay(500);
+    }
   }
 }
 
