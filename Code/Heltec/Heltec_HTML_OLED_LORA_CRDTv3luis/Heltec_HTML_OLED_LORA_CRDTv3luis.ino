@@ -337,6 +337,26 @@ void setup() {
   webServer.onNotFound(handleRoot);
   webServer.on("/send", HTTP_POST, handleSend);
   webServer.on("/messages", HTTP_GET, handleMessages);
+
+  // Webserver-routes
+webServer.on("/", HTTP_GET, handleRoot);
+webServer.onNotFound(handleRoot);
+webServer.on("/send", HTTP_POST, handleSend);
+webServer.on("/messages", HTTP_GET, handleMessages);
+
+// Captive portal detection to make sure it works on android
+webServer.on("/generate_204", HTTP_GET, []() {
+  webServer.sendHeader("Location", "/", true);
+  webServer.send(302, "text/plain", "");
+});
+webServer.on("/redirect", HTTP_GET, []() {
+  webServer.sendHeader("Location", "/", true);
+  webServer.send(302, "text/plain", "");
+});
+webServer.on("/hotspot-detect.html", HTTP_GET, handleRoot); // iOS/macOS
+webServer.on("/ncsi.txt", HTTP_GET, handleRoot);             // Windows
+
+
   webServer.begin();
   // WEBSTUFF --------------------------------------------------------------
 
