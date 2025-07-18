@@ -239,10 +239,9 @@ void handleIDList(String list) {
   std::map<String, IDElement, MacLess> remotelist;
   int start = 0;
 
-  // Getting all the remotes and putting them into remoteList
   while (start < list.length()) {
     int sep = list.indexOf('|', start);
-    if (sep == -1) sep = list.length();  // Handle last entry without trailing '|'
+    if (sep == -1) sep = list.length();
 
     String entry = list.substring(start, sep);
     int c1 = entry.indexOf('_');
@@ -254,21 +253,34 @@ void handleIDList(String list) {
       int rcount = entry.substring(c2 + 1).toInt();
       remotelist[rmac] = { rid, rcount };
     }
-
     start = sep + 1;
   }
 
-  // Send missing messages based on remote state
-  for (const auto& kv : remotelist) {
-    const String& rmac = kv.first;
-    int remoteId = kv.second.id;
+  bool hasEntryForUs = remotelist.find(nodeID) != remotelist.end();
 
-    for (const auto& local : crdtList) {
-      // Match mac address to our version && we have a greater time then the remote for some esp
-      if (local.sender == rmac && local.time > remoteId) {
-        // Sending of that missing message
-        sendLoRaMessage("MSG|" + local.id + "|" + local.content);
-        delay(300);
+  if (!hasEntryForUs) {
+    // Send all our messages (including first)
+    for (const auto& msg : crdtList) {
+      if (msg.sender == nodeID) {
+        for (int i = 0; i < 3; i++) {  // Send 3 times for reliability
+          sendLoRaMessage("MSG|" + msg.id + "|" + msg.content);
+          delay(300);
+        }
+      }
+    }
+  } else {
+    // Send missing messages for all nodes we know about
+    for (const auto& kv : remotelist) {
+      const String& rmac = kv.first;
+      int remoteId = kv.second.id;
+
+      for (const auto& local : crdtList) {
+        if (local.sender == rmac && local.time > remoteId) {
+          for (int i = 0; i < 2; i++) {  // 2 tries for others
+            sendLoRaMessage("MSG|" + local.id + "|" + local.content);
+            delay(300);
+          }
+        }
       }
     }
   }
