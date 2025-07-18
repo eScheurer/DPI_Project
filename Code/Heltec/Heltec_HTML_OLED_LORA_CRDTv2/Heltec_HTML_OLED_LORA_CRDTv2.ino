@@ -76,6 +76,11 @@ const uint8_t aesKey[16] = {
   0x55, 0x66, 0x77, 0x88
 };
 
+// const uint8_t aesKey[16] = {0x50, 0xd8, 0x58, 0xe0,
+                            // 0x60, 0x41, 0x8a, 0xaf, 
+                            // 0x7f, 0x42, 0xc2, 0x57, 
+                            // 0xa9, 0xe8, 0xcc, 0xac, };
+
 String encrypt(String rawText){
   mbedtls_aes_context aes;
   uint8_t iv[16]; // Initialisierungsvektor
@@ -122,17 +127,29 @@ String decrypt(String encriptedText) {
   memcpy(iv, decoded, 16);
   size_t rawLength = decodedLength -16;
   uint8_t* rawText = decoded + 16;
-  uint8_t decrypted[rawLength];
+
+  //uint8_t decrypted[rawLength];
+  uint8_t* decrypted = (uint8_t*)malloc(rawLength);
+  if (!decrypted){
+    return "Error: malloc failed";
+  } 
 
   mbedtls_aes_init(&aes);
   mbedtls_aes_setkey_dec(&aes, aesKey, 128);
   mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_DECRYPT, rawLength, iv, rawText, decrypted);
   mbedtls_aes_free(&aes);
 
+  if (result != 0) {
+    free(decrypted);
+    return "Error: decryption failed";
+  }
+
   while (decrypted[rawLength -1] == 0 && rawLength > 0) {
     rawLength -= 1; // remove the zeros padding from the end
   }
-  return String((char*)decrypted, rawLength);
+  String output = String((char*)decrypted, rawLength);
+  free(decrypted);
+  return output;
 }
 
 // WEBSTUFF --------------------------------------------------------------
