@@ -239,10 +239,10 @@ void handleIDList(String list) {
   std::map<String, IDElement, MacLess> remotelist;
   int start = 0;
 
-  // Getting all the remotes and putting them into remoteList
+  // Parse remote ID list into a map
   while (start < list.length()) {
     int sep = list.indexOf('|', start);
-    if (sep == -1) sep = list.length();  // Handle last entry without trailing '|'
+    if (sep == -1) sep = list.length();
 
     String entry = list.substring(start, sep);
     int c1 = entry.indexOf('_');
@@ -258,21 +258,28 @@ void handleIDList(String list) {
     start = sep + 1;
   }
 
-  // Send missing messages based on remote state
+  // Go through remote entries and compare to local
   for (const auto& kv : remotelist) {
     const String& rmac = kv.first;
-    int remoteId = kv.second.id;
+    int rcount = kv.second.numberOfMessages;
 
-    for (const auto& local : crdtList) {
-      // Match mac address to our version && we have a greater time then the remote for some esp
-      if (local.sender == rmac && local.time > remoteId) {
-        // Sending of that missing message
-        sendLoRaMessage("MSG|" + local.id + "|" + local.content);
-        delay(300);
+    int localCount = 0;
+    for (const auto& msg : crdtList) {
+      if (msg.sender == rmac) localCount++;
+    }
+
+    // If remote has fewer messages we resend all messages
+    if (rcount < localCount) {
+      for (const auto& msg : crdtList) {
+        if (msg.sender == rmac) {
+          sendLoRaMessage("MSG|" + msg.id + "|" + msg.content);
+          delay(300);
+        }
       }
     }
   }
 }
+
 
 // Received message needs to be decoded
 void onReceiveMessage(String &received) {
