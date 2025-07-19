@@ -88,7 +88,7 @@ char ioBuffer[BUF_SIZE];
 const uint8_t aesKey[16] = {0x4c, 0x75, 0x69, 0x73,
                             0x65, 0x6e, 0x79, 0x61, 
                             0x4a, 0x61, 0x6e, 0x6e, 
-                            0x69, 0x63, 0x6b, 0x00, };
+                            0x69, 0x63, 0x6b, 0x00,};
 // SECURITY -------------------------
 // CONFIGURATIONS ---------------------------------------------------------
 
@@ -148,9 +148,9 @@ String encrypt(String rawText){
 
   size_t length = rawText.length();
   size_t paddedLength = ((length/16) +1) *16; // aes works with 16bit blocks, need padding to fit it
-  std::vector<uint8_t> input(paddedLength, 0);
+  std::vector<uint8_t> input(paddedLength, 0); // vector fixes memory bug, bc it is dynamic
   std::vector<uint8_t> output(paddedLength);
-  memcpy(input.data(), rawText.c_str(), length);
+  memcpy(input.data(), rawText.c_str(), length); // .data() returns pointer
   
   mbedtls_aes_init(&aes);
   mbedtls_aes_setkey_enc(&aes, aesKey, 128); //128 Bit == 16 Byte
