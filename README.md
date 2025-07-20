@@ -19,7 +19,7 @@ A self‑contained, peer‑to‑peer chat system for disaster scenarios, combini
     - Periodic “IDLIST” broadcasts every 10 s to detect and recover missed messages.
     - Deterministic ordering by timestamp then sender.
 
-- End‑to‑End Encryption
+- Transport Encryption
     - AES‑128‑CBC with per‑message random IVs.
     - Base64 encoding for safe LoRa transmission.
     - Built with MbedTLS and ESP32’s esp_fill_random().
