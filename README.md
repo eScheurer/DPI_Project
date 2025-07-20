@@ -29,7 +29,7 @@ A self‑contained, peer‑to‑peer chat system for disaster scenarios, combini
     - Useful when running multiple nodes.
 
 ## Hardware Requirements
-- 1× Heltec WiFi LoRa 32 (V3) board (ESP32 + SX1262 + 0.96″ OLED) [Heltec LoRa WiFi 32 (V3)](https://www.amazon.de/dp/B0CWGTZS3X)
+- Heltec WiFi LoRa 32 (V3) board (ESP32 + SX1262 + 0.96″ OLED) [Heltec LoRa WiFi 32 (V3)](https://www.amazon.de/dp/B0CWGTZS3X)
 - USB‑C cable and 5 V power source
 - Optional: 3D‑printed enclosure with through‑board antenna mount
 
@@ -38,6 +38,7 @@ A self‑contained, peer‑to‑peer chat system for disaster scenarios, combini
 - For the other prerequisites it is be best to follow Heltec's quick start guide: [Heltec Quick Start Guide](https://docs.heltec.org/en/node/esp32/esp32_general_docs/quick_start.html)
 
 ## Project Structure
+The main folder containing the final code is **LANandLoRa/**.
 ```
 ├── Development/  
 │   ├── Heltec 
@@ -73,7 +74,7 @@ For the future: dynamic key exchange or asymmetric authentication.
 
 ## Team & Acknowledgements
 - Luis Wenger – CRDT logic & synchronization
-- Enya Scheurer – Encryption, HTML/JS interface
+- Enya Scheurer – Encryption, HTML/JS interface, CRDT prototyping
 - Jannick Seper – LoRa/Wi‑Fi/OLED prototyping
 
 Thanks to the University of Basel DPI lecture staff and Heltec for their example code, libraries and documentation. [Heltec Examples](https://docs.heltec.org/en/node/esp32/esp32_general_docs/quick_start.html#example)
